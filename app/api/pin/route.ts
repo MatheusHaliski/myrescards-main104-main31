@@ -76,8 +76,8 @@ function buildClearCookie() {
 
   export async function POST(request: Request) {
 
-    const hash = process.env.PIN_HASH;
-    const secret = process.env.PIN_COOKIE_SECRET;
+    const hash = process.env.NEXT_PUBLIC_PIN_HASH;
+    const secret = process.env.NEXT_PUBLIC_PIN_COOKIE_SECRET;
     console.log(hash);
     // lê PIN do body
     let pin = "";
@@ -108,7 +108,7 @@ function buildClearCookie() {
 }
 
 export async function GET(request: Request) {
-  const secret = process.env.PIN_COOKIE_SECRET;
+  const secret = process.env.NEXT_PUBLIC_PIN_COOKIE_SECRET;
   if (!secret) return json({ ok: false }, 500);
 
   // pega cookie do header
