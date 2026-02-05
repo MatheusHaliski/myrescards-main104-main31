@@ -180,19 +180,35 @@ export function RestaurantCardsInner() {
         };
     }, []);
 
-    const handleLoadMore = async () => {
-        if (!nextCursor || loadingMore) return;
+    const handleLoadMore = async (): Promise<boolean> => {
+        if (!nextCursor || loadingMore) return false;
         try {
             setLoadingMore(true);
             const { restaurants: items, nextCursor: cursor } =
                 await fetchRestaurantsBatch(pageSize, nextCursor);
             setRestaurants((prev) => [...prev, ...items]);
             setNextCursor(cursor);
+            return true;
         } catch (err) {
             console.error("[RestaurantCardsPage] load more failed:", err);
             setError("Failed to load more restaurants.");
+            return false;
         } finally {
             setLoadingMore(false);
+        }
+    };
+
+    const handleNextPage = async () => {
+        if (currentPage < totalPages) {
+            setCurrentPage((prev) => prev + 1);
+            return;
+        }
+
+        if (nextCursor) {
+            const didLoad = await handleLoadMore();
+            if (didLoad) {
+                setCurrentPage((prev) => prev + 1);
+            }
         }
     };
 
@@ -849,7 +865,8 @@ export function RestaurantCardsInner() {
                             "relative flex flex-wrap items-center justify-between gap-4 px-6 py-5",
                             "rounded-3xl",
                             GLOW_BAR,
-                            "border border-orange-500",
+                            "bg-emerald-500/20",
+                            "border border-emerald-400",
                             GLOW_LINE,
                         ].join(" ")}>
                             <div>
@@ -886,13 +903,11 @@ export function RestaurantCardsInner() {
 
                                 <button
                                     type="button"
-                                    onClick={() =>
-                                        setCurrentPage((prev) => Math.min(totalPages, prev + 1))
-                                    }
-                                    disabled={currentPage === totalPages}
+                                    onClick={handleNextPage}
+                                    disabled={loadingMore || (!nextCursor && currentPage === totalPages)}
                                     className="h-10 rounded-xl border border-white/25 bg-white/10 px-4 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
                                 >
-                                    Next
+                                    {loadingMore ? "Loading…" : "Next"}
                                 </button>
                             </div>
                         </div>
