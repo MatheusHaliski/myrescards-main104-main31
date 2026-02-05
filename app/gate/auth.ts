@@ -169,7 +169,7 @@ export function useAuthGate(): UseAuthGateReturn  {
         return;
       }
       if (normalizedEmail !== ALLOWED_GOOGLE_EMAIL) {
-        setGoogleError(`Only ${ALLOWED_GOOGLE_EMAIL} is allowed to sign in.`);
+        setGoogleError(`Not allowed.`);
         setGoogleAuthed(false);
         setGoogleUserId("");
         return;
