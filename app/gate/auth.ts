@@ -146,11 +146,9 @@ export function useAuthGate(): UseAuthGateReturn  {
     }
   }
 
-  const clientId = useMemo(
-      () => process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "",
-      []
-  );
-  console.log(clientId);
+  const clientId ="457209482063-s3q59rtck2dg6mcruuq2qbea1ee7ofe8.apps.googleusercontent.com";
+
+  console.log("IS:",clientId);
 
 
 
@@ -208,7 +206,6 @@ export function useAuthGate(): UseAuthGateReturn  {
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({pin: normalized}),
       });
-      console.log(process.env.NEXT_PUBLIC_PIN_HASH);
       const data: unknown = await res.json().catch(() => ({}));
       const msg =
           typeof (data as { error?: unknown })?.error === "string"

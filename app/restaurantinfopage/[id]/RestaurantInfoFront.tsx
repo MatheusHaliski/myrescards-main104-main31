@@ -86,11 +86,6 @@ export default function RestaurantInfoFront({ restaurant, reviews }: Props) {
     }
   }, [router]);
 
-  // Debug opcional (se quiser, mantenha)
-  useEffect(() => {
-    console.log("AUTH TOKEN:", getAuthSessionToken());
-    console.log("DEV TOKEN:", getDevSessionToken());
-  }, []);
 
   // Média baseada nos reviews (fonte mais “real”)
   const reviewAverage = useMemo(() => {

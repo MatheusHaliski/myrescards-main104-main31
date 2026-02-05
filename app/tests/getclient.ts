@@ -5,7 +5,6 @@ import {getDb} from "../gate/getDb";
 export default function ClientTest(){
       useEffect(()=> {
             const db = getDb();
-            console.log(db)
       })
     return null;
 }

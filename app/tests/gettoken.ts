@@ -11,9 +11,7 @@ export default function  TokenTest() {
 
         const token = localStorage.getItem(DEV_SESSION_TOKEN_KEY);
 
-        console.log("DEV TOKEN:", token);
-        console.log("AuthGate state:", authGate);
-        console.log("DB instance:", db);
+
 
     return null;
 }

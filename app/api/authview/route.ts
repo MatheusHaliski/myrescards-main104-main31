@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     try {
         const db = getAdminFirestore();
         const snapshot = await db
-            .collection("VSusercontrol")
+            .collection(process.env.NEXT_PUBLIC_DATABASE_NAME!)
             .where("email", "==", email)
             .limit(1)
             .get();

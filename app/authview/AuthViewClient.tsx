@@ -26,7 +26,6 @@ export default function AuthViewClient() {
     useEffect(() => {
         if (pathname !== "/authview") return;
         clearAuthSessionToken();
-        console.log("You are logged out!");
     }, [pathname]);
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();

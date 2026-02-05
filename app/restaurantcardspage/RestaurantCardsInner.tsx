@@ -92,7 +92,6 @@ export function RestaurantCardsInner() {
     }, [router]);
     useEffect(() => {
         const token1 = getAuthSessionToken();
-        console.log("AUTH VELIONSOCIAL TOKEN IS:",token1);
     })
 
 

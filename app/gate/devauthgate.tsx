@@ -24,7 +24,7 @@ export default function DevAuthGate() {
         verifyPin,
         resetGate
     } = useAuthGate();
-    console.log("CLIENT_ID:", process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID);
+
 
     const pathname = usePathname();
     const router = useRouter();
@@ -43,11 +43,7 @@ export default function DevAuthGate() {
         if (!g?.accounts?.id) return; // script ainda não carregou
 
         g.accounts.id.initialize({
-            client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
-            callback: (response: any) => {
-                console.log("GOOGLE JWT:", response.credential);
-                // aqui você manda pro backend verificar e setar googleAuthed etc.
-            },
+            client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
         });
 
         g.accounts.id.renderButton(
@@ -65,7 +61,6 @@ export default function DevAuthGate() {
             const token = crypto.randomUUID();
             setDevSessionToken(token);
             const existing2 = getDevSessionToken();
-            console.log("DEV TOKEN IS:",existing2);
         }
     }, [googleAuthed, pinVerified, router]);
 
