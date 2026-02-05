@@ -912,6 +912,19 @@ export function RestaurantCardsInner() {
                             </div>
                         </div>
                     ) : null}
+
+                    {nextCursor ? (
+                        <div className="mt-5 flex justify-center">
+                            <button
+                                type="button"
+                                onClick={handleLoadMore}
+                                disabled={loadingMore}
+                                className="h-11 rounded-2xl border border-white/30 bg-white/10 px-6 text-sm font-semibold text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {loadingMore ? "Loading more…" : "Load more restaurants"}
+                            </button>
+                        </div>
+                    ) : null}
                 </section>
             </div>
         </div>
