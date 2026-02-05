@@ -76,7 +76,7 @@ function buildClearCookie() {
 
   export async function POST(request: Request) {
 
-    const hash = "$2b$16$TTo0SNaxUwQlumfXGyVjPuIsAg7gWNeUlQ4yEWIZpN9LmWZ43JwAa";
+    const hash = "$2a$16$uWsM.ilE/Ul64F6ZbNK0uO/bgMxGlqMS1jWuSzoc86XmWTHPDykG.";
     console.log(hash);
     const secret = process.env.PIN_COOKIE_SECRET;
     console.log(secret);
