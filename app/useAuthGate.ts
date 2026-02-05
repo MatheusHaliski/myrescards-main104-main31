@@ -92,17 +92,6 @@ export const useAuthGate = () => {
         return () => window.removeEventListener("storage", handleStorage);
     }, []);
 
-    useEffect(() => {
-        console.log("[AuthGate debug]", {
-            user: Boolean(user),
-            pinVerified,
-            sessionToken,
-            authReady,
-            pinCheckReady,
-            authError,
-            isBlocked,
-        });
-    }, [user, pinVerified, sessionToken, authReady, pinCheckReady, authError, isBlocked]);
 
     const resetPinState = () => {
         setPinVerified(false);
