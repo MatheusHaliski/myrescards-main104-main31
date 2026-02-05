@@ -49,12 +49,23 @@ import {getAuthSessionToken} from "@/app/lib/authSession";
 /* =========================
    Data fetch (Server)
 ========================= */
-async function fetchRestaurants(): Promise<Restaurant[]> {
-    const response = await fetch("/api/restaurants");
+type RestaurantBatch = {
+    restaurants: Restaurant[];
+    nextCursor: string | null;
+};
+
+async function fetchRestaurantsBatch(
+    limit: number,
+    cursor?: string | null
+): Promise<RestaurantBatch> {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (cursor) params.set("cursor", cursor);
+
+    const response = await fetch(`/api/restaurants?${params.toString()}`);
     if (!response.ok) {
         throw new Error("Failed to load restaurants.");
     }
-    return (await response.json()) as Restaurant[];
+    return (await response.json()) as RestaurantBatch;
 }
 
 export function RestaurantCardsInner() {
@@ -67,7 +78,9 @@ export function RestaurantCardsInner() {
 
     const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
     const [error, setError] = useState("");
+    const [nextCursor, setNextCursor] = useState<string | null>(null);
     const [authProfile, setAuthProfile] = useState<AuthSessionProfile>(() =>
         getAuthSessionProfile()
     );
@@ -147,8 +160,11 @@ export function RestaurantCardsInner() {
                 setLoading(true);
                 setError("");
 
-                const items = await fetchRestaurants();
-                if (isMounted) setRestaurants(items);
+                const { restaurants: items, nextCursor: cursor } =
+                    await fetchRestaurantsBatch(pageSize);
+                if (!isMounted) return;
+                setRestaurants(items);
+                setNextCursor(cursor);
             } catch (err) {
                 console.error("[RestaurantCardsPage] load failed:", err);
                 if (isMounted) setError("Failed to load restaurants.");
@@ -163,6 +179,22 @@ export function RestaurantCardsInner() {
             isMounted = false;
         };
     }, []);
+
+    const handleLoadMore = async () => {
+        if (!nextCursor || loadingMore) return;
+        try {
+            setLoadingMore(true);
+            const { restaurants: items, nextCursor: cursor } =
+                await fetchRestaurantsBatch(pageSize, nextCursor);
+            setRestaurants((prev) => [...prev, ...items]);
+            setNextCursor(cursor);
+        } catch (err) {
+            console.error("[RestaurantCardsPage] load more failed:", err);
+            setError("Failed to load more restaurants.");
+        } finally {
+            setLoadingMore(false);
+        }
+    };
 
     // ===========================
     // C) Preload imagens (se você tiver URLs)
@@ -863,6 +895,19 @@ export function RestaurantCardsInner() {
                                     Next
                                 </button>
                             </div>
+                        </div>
+                    ) : null}
+
+                    {nextCursor ? (
+                        <div className="mt-5 flex justify-center">
+                            <button
+                                type="button"
+                                onClick={handleLoadMore}
+                                disabled={loadingMore}
+                                className="h-11 rounded-2xl border border-white/30 bg-white/10 px-6 text-sm font-semibold text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {loadingMore ? "Loading more…" : "Load more restaurants"}
+                            </button>
                         </div>
                     ) : null}
                 </section>
