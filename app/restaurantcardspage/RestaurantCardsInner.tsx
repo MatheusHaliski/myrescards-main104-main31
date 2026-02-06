@@ -49,12 +49,34 @@ import {getAuthSessionToken} from "@/app/lib/authSession";
 /* =========================
    Data fetch (Server)
 ========================= */
-async function fetchRestaurants(): Promise<Restaurant[]> {
-    const response = await fetch("/api/restaurants");
+type RestaurantsCatalogResponse = {
+    catalog: Restaurant[];
+};
+
+type RestaurantsByIdsResponse = {
+    restaurants: Restaurant[];
+};
+
+async function fetchRestaurantsCatalog(): Promise<Restaurant[]> {
+    const response = await fetch("/api/restaurants/catalog");
     if (!response.ok) {
-        throw new Error("Failed to load restaurants.");
+        throw new Error("Failed to load restaurant catalog.");
     }
-    return (await response.json()) as Restaurant[];
+    const payload = (await response.json()) as RestaurantsCatalogResponse;
+    return payload.catalog;
+}
+
+async function fetchRestaurantsByIds(ids: string[]): Promise<Restaurant[]> {
+    const response = await fetch("/api/restaurants/byIds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+    });
+    if (!response.ok) {
+        throw new Error("Failed to load restaurant details.");
+    }
+    const payload = (await response.json()) as RestaurantsByIdsResponse;
+    return payload.restaurants;
 }
 
 export function RestaurantCardsInner() {
@@ -65,8 +87,13 @@ export function RestaurantCardsInner() {
     const [currentPage, setCurrentPage] = useState(1);
     const pageSize = 20;
 
-    const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+    const [catalog, setCatalog] = useState<Restaurant[]>([]);
+    const [detailsById, setDetailsById] = useState<Record<string, Restaurant>>({});
+    const [missingDetailIds, setMissingDetailIds] = useState<Set<string>>(
+        () => new Set()
+    );
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
     const [error, setError] = useState("");
     const [authProfile, setAuthProfile] = useState<AuthSessionProfile>(() =>
         getAuthSessionProfile()
@@ -147,8 +174,9 @@ export function RestaurantCardsInner() {
                 setLoading(true);
                 setError("");
 
-                const items = await fetchRestaurants();
-                if (isMounted) setRestaurants(items);
+                const items = await fetchRestaurantsCatalog();
+                if (!isMounted) return;
+                setCatalog(items);
             } catch (err) {
                 console.error("[RestaurantCardsPage] load failed:", err);
                 if (isMounted) setError("Failed to load restaurants.");
@@ -164,11 +192,70 @@ export function RestaurantCardsInner() {
         };
     }, []);
 
+    const handleNextPage = () => {
+        if (currentPage < totalPages) {
+            setCurrentPage((prev) => prev + 1);
+        }
+    };
+
+    const handleLoadMore = async (missingIds: string[]) => {
+        try {
+            setLoadingMore(true);
+            const items = await fetchRestaurantsByIds(missingIds);
+            if (items.length) {
+                setDetailsById((prev) => {
+                    const next = { ...prev };
+                    items.forEach((restaurant) => {
+                        next[restaurant.id] = restaurant;
+                    });
+                    return next;
+                });
+            }
+            if (items.length !== missingIds.length) {
+                const foundIds = new Set(items.map((restaurant) => restaurant.id));
+                const missing = missingIds.filter((id) => !foundIds.has(id));
+                if (missing.length) {
+                    setMissingDetailIds((prev) => {
+                        const next = new Set(prev);
+                        missing.forEach((id) => next.add(id));
+                        return next;
+                    });
+                }
+            }
+        } catch (err) {
+            console.error("[RestaurantCardsPage] details load failed:", err);
+            setError("Failed to load restaurant details.");
+        } finally {
+            setLoadingMore(false);
+        }
+    };
+
+    useEffect(() => {
+        if (!pageIds.length) return;
+
+        const missingIds = pageIds.filter(
+            (id) => !detailsById[id] && !missingDetailIds.has(id)
+        );
+        if (!missingIds.length) return;
+
+        let isMounted = true;
+
+        const loadDetails = async () => {
+            if (!isMounted) return;
+            await handleLoadMore(missingIds);
+        };
+
+        loadDetails();
+        return () => {
+            isMounted = false;
+        };
+    }, [detailsById, missingDetailIds, pageIds]);
+
     // ===========================
     // C) Preload imagens (se você tiver URLs)
     // ===========================
     useEffect(() => {
-        if (restaurants.length === 0) {
+        if (pagedRestaurants.length === 0) {
             setCardImageUrls({});
             return;
         }
@@ -187,7 +274,7 @@ export function RestaurantCardsInner() {
             const nextUrls: Record<string, string> = {};
             const preloadUrls: string[] = [];
 
-            restaurants.forEach((restaurant) => {
+            pagedRestaurants.forEach((restaurant) => {
                 const candidate =
                     restaurant.photo ||
                     restaurant.imagePath ||
@@ -211,44 +298,49 @@ export function RestaurantCardsInner() {
         return () => {
             isMounted = false;
         };
-    }, [restaurants]);
+    }, [pagedRestaurants]);
+
+    const catalogById = useMemo(() => {
+        const entries = catalog.map((restaurant) => [restaurant.id, restaurant] as const);
+        return Object.fromEntries(entries);
+    }, [catalog]);
 
     // ===========================
     // D) normalize location
     // ===========================
-    const normalizedRestaurants = useMemo(
+    const normalizedCatalog = useMemo(
         () =>
-            restaurants.map((restaurant) => ({
+            catalog.map((restaurant) => ({
                 ...restaurant,
                 ...getNormalizedLocation(restaurant),
             })),
-        [restaurants]
+        [catalog]
     );
 
     const availableCountries = useMemo(() => {
         const options = new Set<string>();
-        normalizedRestaurants.forEach((r) => r.country && options.add(r.country));
+        normalizedCatalog.forEach((r) => r.country && options.add(r.country));
         return Array.from(options).sort();
-    }, [normalizedRestaurants]);
+    }, [normalizedCatalog]);
 
     const availableStates = useMemo(() => {
         const options = new Set<string>();
-        normalizedRestaurants.forEach((r) => {
+        normalizedCatalog.forEach((r) => {
             if (country && r.country !== country) return;
             if (r.state) options.add(r.state);
         });
         return Array.from(options).sort();
-    }, [normalizedRestaurants, country]);
+    }, [normalizedCatalog, country]);
 
     const availableCities = useMemo(() => {
         const options = new Set<string>();
-        normalizedRestaurants.forEach((r) => {
+        normalizedCatalog.forEach((r) => {
             if (country && r.country !== country) return;
             if (stateValue && r.state !== stateValue) return;
             if (r.city) options.add(r.city);
         });
         return Array.from(options).sort();
-    }, [normalizedRestaurants, country, stateValue]);
+    }, [normalizedCatalog, country, stateValue]);
 
     const availableCategories = useMemo(() => {
         const seen = new Set<string>();
@@ -275,12 +367,12 @@ export function RestaurantCardsInner() {
         setCity("");
     }, [stateValue]);
 
-    const filteredRestaurants = useMemo(() => {
+    const filteredCatalog = useMemo(() => {
         const normalizedQuery = nameQuery.trim().toLowerCase();
         const selectedCategory = category.trim().toLowerCase();
         const minimumStars = starsFilter ? Number(starsFilter) : null;
 
-        return normalizedRestaurants.filter((r) => {
+        return normalizedCatalog.filter((r) => {
             const matchesName = normalizedQuery
                 ? String(r.name || "").toLowerCase().includes(normalizedQuery)
                 : true;
@@ -308,7 +400,7 @@ export function RestaurantCardsInner() {
             );
         });
     }, [
-        normalizedRestaurants,
+        normalizedCatalog,
         nameQuery,
         country,
         stateValue,
@@ -321,12 +413,25 @@ export function RestaurantCardsInner() {
         setCurrentPage(1);
     }, [nameQuery, country, stateValue, city, category, starsFilter]);
 
-    const totalPages = Math.max(1, Math.ceil(filteredRestaurants.length / pageSize));
+    const filteredIds = useMemo(
+        () => filteredCatalog.map((restaurant) => restaurant.id),
+        [filteredCatalog]
+    );
 
-    const pagedRestaurants = useMemo(() => {
+    const totalPages = Math.max(1, Math.ceil(filteredIds.length / pageSize));
+
+    const pageIds = useMemo(() => {
         const startIndex = (currentPage - 1) * pageSize;
-        return filteredRestaurants.slice(startIndex, startIndex + pageSize);
-    }, [currentPage, filteredRestaurants, pageSize]);
+        return filteredIds.slice(startIndex, startIndex + pageSize);
+    }, [currentPage, filteredIds, pageSize]);
+
+    const pagedRestaurants = useMemo(
+        () =>
+            pageIds
+                .map((id) => detailsById[id] ?? catalogById[id])
+                .filter(Boolean) as Restaurant[],
+        [catalogById, detailsById, pageIds]
+    );
 
     const authProfileLabel = authProfile.email?.trim();
     const userLabel = authProfileLabel || getUserLabel(user, "Guest");
@@ -674,7 +779,7 @@ export function RestaurantCardsInner() {
                         </p>
                     ) : null}
 
-                    {!loading && !error && filteredRestaurants.length === 0 ? (
+                    {!loading && !error && filteredIds.length === 0 ? (
                         <p className="rounded-2xl border border-white/14 bg-white/[0.08] px-4 py-3 text-sm text-white/70 backdrop-blur-2xl">
                             No restaurants match your filters.
                         </p>
@@ -812,12 +917,13 @@ export function RestaurantCardsInner() {
                         })}
                     </div>
 
-                    {!loading && !error && filteredRestaurants.length > 0 ? (
+                    {!loading && !error && filteredIds.length > 0 ? (
                         <div    className={[
                             "relative flex flex-wrap items-center justify-between gap-4 px-6 py-5",
                             "rounded-3xl",
                             GLOW_BAR,
-                            "border border-orange-500",
+                            "bg-emerald-500/20",
+                            "border border-emerald-400",
                             GLOW_LINE,
                         ].join(" ")}>
                             <div>
@@ -827,11 +933,11 @@ export function RestaurantCardsInner() {
                 </span>{" "}
                                 -{" "}
                                 <span className="font-semibold text-white">
-                  {Math.min(currentPage * pageSize, filteredRestaurants.length)}
+                  {Math.min(currentPage * pageSize, filteredIds.length)}
                 </span>{" "}
                                 of{" "}
                                 <span className="font-semibold text-white">
-                  {filteredRestaurants.length}
+                  {filteredIds.length}
                 </span>{" "}
                                 restaurants
                             </div>
@@ -854,13 +960,11 @@ export function RestaurantCardsInner() {
 
                                 <button
                                     type="button"
-                                    onClick={() =>
-                                        setCurrentPage((prev) => Math.min(totalPages, prev + 1))
-                                    }
+                                    onClick={handleNextPage}
                                     disabled={currentPage === totalPages}
                                     className="h-10 rounded-xl border border-white/25 bg-white/10 px-4 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
                                 >
-                                    Next
+                                    {loadingMore ? "Loading…" : "Next"}
                                 </button>
                             </div>
                         </div>

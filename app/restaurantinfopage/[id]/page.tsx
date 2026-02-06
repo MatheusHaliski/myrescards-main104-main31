@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import {collection, doc, getDoc, getDocs, query, updateDoc, where} from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, updateDoc, where } from "firebase/firestore/lite";
 
 import { getDb } from "@/app/gate/getDb";
 import RestaurantInfoFront from "@/app/restaurantinfopage/[id]/RestaurantInfoFront";
