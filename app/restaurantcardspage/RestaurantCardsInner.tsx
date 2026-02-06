@@ -95,6 +95,7 @@ export function RestaurantCardsInner() {
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
     const [error, setError] = useState("");
+    const [nextCursor, setNextCursor] = useState<string | null>(null);
     const [authProfile, setAuthProfile] = useState<AuthSessionProfile>(() =>
         getAuthSessionProfile()
     );
@@ -109,7 +110,78 @@ export function RestaurantCardsInner() {
     const [city, setCity] = useState("");
     const [category, setCategory] = useState("");
     const [starsFilter, setStarsFilter] = useState("");
+    const catalogById = useMemo(() => {
+        const entries = catalog.map((restaurant) => [restaurant.id, restaurant] as const);
+        return Object.fromEntries(entries);
+    }, [catalog]);
+    const normalizedCatalog = useMemo(
+        () =>
+            catalog.map((restaurant) => ({
+                ...restaurant,
+                ...getNormalizedLocation(restaurant),
+            })),
+        [catalog]
+    );
+    const filteredCatalog = useMemo(() => {
+        const normalizedQuery = nameQuery.trim().toLowerCase();
+        const selectedCategory = category.trim().toLowerCase();
+        const minimumStars = starsFilter ? Number(starsFilter) : null;
 
+        return normalizedCatalog.filter((r) => {
+            const matchesName = normalizedQuery
+                ? String(r.name || "").toLowerCase().includes(normalizedQuery)
+                : true;
+
+            const matchesCountry = country ? r.country === country : true;
+            const matchesState = stateValue ? r.state === stateValue : true;
+            const matchesCity = city ? r.city === city : true;
+
+            const matchesCategory = selectedCategory
+                ? getCategoryValues(r).some((value) => value.toLowerCase() === selectedCategory)
+                : true;
+
+            const matchesStars =
+                minimumStars === null
+                    ? true
+                    : parseRatingValue(r.starsgiven) >= minimumStars;
+
+            return (
+                matchesName &&
+                matchesCountry &&
+                matchesState &&
+                matchesCity &&
+                matchesCategory &&
+                matchesStars
+            );
+        });
+    }, [
+        normalizedCatalog,
+        nameQuery,
+        country,
+        stateValue,
+        city,
+        category,
+        starsFilter,
+    ]);
+    const filteredIds = useMemo(
+        () => filteredCatalog.map((restaurant) => restaurant.id),
+        [filteredCatalog]
+    );
+
+    const totalPages = Math.max(1, Math.ceil(filteredIds.length / pageSize));
+
+    const pageIds = useMemo(() => {
+        const startIndex = (currentPage - 1) * pageSize;
+        return filteredIds.slice(startIndex, startIndex + pageSize);
+    }, [currentPage, filteredIds, pageSize]);
+
+    const pagedRestaurants = useMemo(
+        () =>
+            pageIds
+                .map((id) => detailsById[id] ?? catalogById[id])
+                .filter(Boolean) as Restaurant[],
+        [catalogById, detailsById, pageIds]
+    );
     useEffect(() => {
         const t1 = getAuthSessionToken();
         if (!t1) {
@@ -967,6 +1039,19 @@ export function RestaurantCardsInner() {
                                     {loadingMore ? "Loading…" : "Next"}
                                 </button>
                             </div>
+                        </div>
+                    ) : null}
+
+                    {nextCursor ? (
+                        <div className="mt-5 flex justify-center">
+                            <button
+                                type="button"
+                                onClick={handleLoadMore}
+                                disabled={loadingMore}
+                                className="h-11 rounded-2xl border border-white/30 bg-white/10 px-6 text-sm font-semibold text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {loadingMore ? "Loading more…" : "Load more restaurants"}
+                            </button>
                         </div>
                     ) : null}
                 </section>
