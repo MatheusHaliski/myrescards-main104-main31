@@ -19,7 +19,7 @@ import {
   serverTimestamp,
   Timestamp,
   updateDoc,
-} from "firebase/firestore";
+} from "firebase/firestore/lite";
 
 import { getDb } from "@/app/gate/getDb";
 

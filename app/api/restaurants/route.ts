@@ -1,17 +1,34 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { FieldPath } from "firebase-admin/firestore";
 
 import { getAdminFirestore } from "@/app/lib/firebaseAdmin";
 import type { Restaurant } from "@/app/gate/restaurantpagegate";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
     try {
+        const { searchParams } = new URL(request.url);
+        const limitParam = Number(searchParams.get("limit") ?? "20");
+        const limitValue = Number.isFinite(limitParam) && limitParam > 0 ? limitParam : 20;
+        const cursor = searchParams.get("cursor");
+
         const db = getAdminFirestore();
-        const snapshot = await db.collection("restaurants").get();
+        let query = db
+            .collection("restaurants")
+            .orderBy(FieldPath.documentId())
+            .limit(limitValue);
+
+        if (cursor) {
+            query = query.startAfter(cursor);
+        }
+
+        const snapshot = await query.get();
         const restaurants = snapshot.docs.map((doc) => ({
             ...(doc.data() as Restaurant),
             id: doc.id,
         }));
-        return NextResponse.json(restaurants);
+        const lastDoc = snapshot.docs.at(-1);
+        const nextCursor = snapshot.docs.length === limitValue ? lastDoc?.id ?? null : null;
+        return NextResponse.json({ restaurants, nextCursor });
     } catch (error) {
         console.error("[Restaurants API] load failed:", error);
         return NextResponse.json(
