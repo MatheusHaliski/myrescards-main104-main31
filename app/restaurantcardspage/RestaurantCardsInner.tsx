@@ -89,6 +89,9 @@ export function RestaurantCardsInner() {
 
     const [catalog, setCatalog] = useState<Restaurant[]>([]);
     const [detailsById, setDetailsById] = useState<Record<string, Restaurant>>({});
+    const [missingDetailIds, setMissingDetailIds] = useState<Set<string>>(
+        () => new Set()
+    );
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
     const [error, setError] = useState("");
@@ -271,13 +274,26 @@ export function RestaurantCardsInner() {
         try {
             setLoadingMore(true);
             const items = await fetchRestaurantsByIds(missingIds);
-            setDetailsById((prev) => {
-                const next = { ...prev };
-                items.forEach((restaurant) => {
-                    next[restaurant.id] = restaurant;
+            if (items.length) {
+                setDetailsById((prev) => {
+                    const next = { ...prev };
+                    items.forEach((restaurant) => {
+                        next[restaurant.id] = restaurant;
+                    });
+                    return next;
                 });
-                return next;
-            });
+            }
+            if (items.length !== missingIds.length) {
+                const foundIds = new Set(items.map((restaurant) => restaurant.id));
+                const missing = missingIds.filter((id) => !foundIds.has(id));
+                if (missing.length) {
+                    setMissingDetailIds((prev) => {
+                        const next = new Set(prev);
+                        missing.forEach((id) => next.add(id));
+                        return next;
+                    });
+                }
+            }
         } catch (err) {
             console.error("[RestaurantCardsPage] details load failed:", err);
             setError("Failed to load restaurant details.");
@@ -289,7 +305,9 @@ export function RestaurantCardsInner() {
     useEffect(() => {
         if (!pageIds.length) return;
 
-        const missingIds = pageIds.filter((id) => !detailsById[id]);
+        const missingIds = pageIds.filter(
+            (id) => !detailsById[id] && !missingDetailIds.has(id)
+        );
         if (!missingIds.length) return;
 
         let isMounted = true;
@@ -303,7 +321,7 @@ export function RestaurantCardsInner() {
         return () => {
             isMounted = false;
         };
-    }, [detailsById, pageIds]);
+    }, [detailsById, missingDetailIds, pageIds]);
 
     // ===========================
     // C) Preload imagens (se você tiver URLs)
