@@ -90,7 +90,7 @@ export function RestaurantCardsInner() {
     const [catalog, setCatalog] = useState<Restaurant[]>([]);
     const [detailsById, setDetailsById] = useState<Record<string, Restaurant>>({});
     const [loading, setLoading] = useState(true);
-    const [loadingDetails, setLoadingDetails] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
     const [error, setError] = useState("");
     const [nextCursor, setNextCursor] = useState<string | null>(null);
     const [authProfile, setAuthProfile] = useState<AuthSessionProfile>(() =>
@@ -267,6 +267,25 @@ export function RestaurantCardsInner() {
         }
     };
 
+    const handleLoadMore = async (missingIds: string[]) => {
+        try {
+            setLoadingMore(true);
+            const items = await fetchRestaurantsByIds(missingIds);
+            setDetailsById((prev) => {
+                const next = { ...prev };
+                items.forEach((restaurant) => {
+                    next[restaurant.id] = restaurant;
+                });
+                return next;
+            });
+        } catch (err) {
+            console.error("[RestaurantCardsPage] details load failed:", err);
+            setError("Failed to load restaurant details.");
+        } finally {
+            setLoadingMore(false);
+        }
+    };
+
     useEffect(() => {
         if (!pageIds.length) return;
 
@@ -276,23 +295,8 @@ export function RestaurantCardsInner() {
         let isMounted = true;
 
         const loadDetails = async () => {
-            try {
-                setLoadingDetails(true);
-                const items = await fetchRestaurantsByIds(missingIds);
-                if (!isMounted) return;
-                setDetailsById((prev) => {
-                    const next = { ...prev };
-                    items.forEach((restaurant) => {
-                        next[restaurant.id] = restaurant;
-                    });
-                    return next;
-                });
-            } catch (err) {
-                console.error("[RestaurantCardsPage] details load failed:", err);
-                if (isMounted) setError("Failed to load restaurant details.");
-            } finally {
-                if (isMounted) setLoadingDetails(false);
-            }
+            if (!isMounted) return;
+            await handleLoadMore(missingIds);
         };
 
         loadDetails();
@@ -350,6 +354,22 @@ export function RestaurantCardsInner() {
         };
     }, [pagedRestaurants]);
 
+    const catalogById = useMemo(() => {
+        const entries = catalog.map((restaurant) => [restaurant.id, restaurant] as const);
+        return Object.fromEntries(entries);
+    }, [catalog]);
+
+    // ===========================
+    // D) normalize location
+    // ===========================
+    const normalizedCatalog = useMemo(
+        () =>
+            catalog.map((restaurant) => ({
+                ...restaurant,
+                ...getNormalizedLocation(restaurant),
+            })),
+        [catalog]
+    );
 
     const availableCountries = useMemo(() => {
         const options = new Set<string>();
@@ -401,11 +421,71 @@ export function RestaurantCardsInner() {
         setCity("");
     }, [stateValue]);
 
+    const filteredCatalog = useMemo(() => {
+        const normalizedQuery = nameQuery.trim().toLowerCase();
+        const selectedCategory = category.trim().toLowerCase();
+        const minimumStars = starsFilter ? Number(starsFilter) : null;
+
+        return normalizedCatalog.filter((r) => {
+            const matchesName = normalizedQuery
+                ? String(r.name || "").toLowerCase().includes(normalizedQuery)
+                : true;
+
+            const matchesCountry = country ? r.country === country : true;
+            const matchesState = stateValue ? r.state === stateValue : true;
+            const matchesCity = city ? r.city === city : true;
+
+            const matchesCategory = selectedCategory
+                ? getCategoryValues(r).some((value) => value.toLowerCase() === selectedCategory)
+                : true;
+
+            const matchesStars =
+                minimumStars === null
+                    ? true
+                    : parseRatingValue(r.starsgiven) >= minimumStars;
+
+            return (
+                matchesName &&
+                matchesCountry &&
+                matchesState &&
+                matchesCity &&
+                matchesCategory &&
+                matchesStars
+            );
+        });
+    }, [
+        normalizedCatalog,
+        nameQuery,
+        country,
+        stateValue,
+        city,
+        category,
+        starsFilter,
+    ]);
 
     useEffect(() => {
         setCurrentPage(1);
     }, [nameQuery, country, stateValue, city, category, starsFilter]);
 
+    const filteredIds = useMemo(
+        () => filteredCatalog.map((restaurant) => restaurant.id),
+        [filteredCatalog]
+    );
+
+    const totalPages = Math.max(1, Math.ceil(filteredIds.length / pageSize));
+
+    const pageIds = useMemo(() => {
+        const startIndex = (currentPage - 1) * pageSize;
+        return filteredIds.slice(startIndex, startIndex + pageSize);
+    }, [currentPage, filteredIds, pageSize]);
+
+    const pagedRestaurants = useMemo(
+        () =>
+            pageIds
+                .map((id) => detailsById[id] ?? catalogById[id])
+                .filter(Boolean) as Restaurant[],
+        [catalogById, detailsById, pageIds]
+    );
 
     const authProfileLabel = authProfile.email?.trim();
     const userLabel = authProfileLabel || getUserLabel(user, "Guest");
@@ -938,7 +1018,7 @@ export function RestaurantCardsInner() {
                                     disabled={currentPage === totalPages}
                                     className="h-10 rounded-xl border border-white/25 bg-white/10 px-4 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
                                 >
-                                    {loadingDetails ? "Loading…" : "Next"}
+                                    {loadingMore ? "Loading…" : "Next"}
                                 </button>
                             </div>
                         </div>
