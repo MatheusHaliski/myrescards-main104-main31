@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
         const restaurants = snapshots
             .filter((snap) => snap.exists)
             .map((snap) => ({
-                id: snap.id,
+                resid: snap.id,
                 ...(snap.data() as Restaurant),
             }));
 
