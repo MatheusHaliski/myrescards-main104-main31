@@ -66,6 +66,14 @@ async function fetchRestaurantsCatalog(): Promise<Restaurant[]> {
     return payload.catalog;
 }
 
+async function getRestaurantsByIds(): Promise<Restaurant[]>{
+    const response = await fetch("/api/restaurants/byIds")
+    if (!response.ok) {
+        throw new Error("Failed to load restaurant details.");
+    }
+    const payload = (await response.json()) as RestaurantsByIdsResponse;
+    return payload.restaurants;
+}
 async function fetchRestaurantsByIds(ids: string[]): Promise<Restaurant[]> {
     const response = await fetch("/api/restaurants/byIds", {
         method: "POST",
@@ -114,6 +122,7 @@ export function RestaurantCardsInner() {
         const entries = catalog.map((restaurant) => [restaurant.id, restaurant] as const);
         return Object.fromEntries(entries);
     }, [catalog]);
+
     const normalizedCatalog = useMemo(
         () =>
             catalog.map((restaurant) => ({
@@ -167,7 +176,6 @@ export function RestaurantCardsInner() {
         () => filteredCatalog.map((restaurant) => restaurant.id),
         [filteredCatalog]
     );
-
     const totalPages = Math.max(1, Math.ceil(filteredIds.length / pageSize));
 
     const pageIds = useMemo(() => {
@@ -270,6 +278,45 @@ export function RestaurantCardsInner() {
         }
     };
 
+    const loadDetailsByIds = async (missingIds: string[]) => {
+        try {
+            setLoadingMore(true);
+
+            const items = await fetchRestaurantsByIds(missingIds);
+
+            if (items.length) {
+                setDetailsById((y) => {
+                    const next = { ...y};
+                    items.forEach((r) => (next[r.id] = r));
+                    return next;
+                });
+            }
+
+            if (items.length !== missingIds.length) {
+                const foundIds = new Set(items.map((r) => r.id));
+                const missing = missingIds.filter((id) => !foundIds.has(id));
+                if (missing.length) {
+                    setMissingDetailIds((prev) => {
+                        const next = new Set(prev);
+                        missing.forEach((id) => next.add(id));
+                        return next;
+                    });
+                }
+            }
+        } catch (err) {
+            console.error("[RestaurantCardsPage] details load failed:", err);
+            setError("Failed to load restaurant details.");
+        } finally {
+            setLoadingMore(false);
+        }
+    };
+    const handleLoadMoreClick = async () => {
+        const missingIds = pageIds.filter(
+            (id) => !detailsById[id] && !missingDetailIds.has(id)
+        );
+        if (!missingIds.length) return;
+        await loadDetailsByIds(missingIds);
+    };
     const handleLoadMore = async (missingIds: string[]) => {
         try {
             setLoadingMore(true);
@@ -372,22 +419,6 @@ export function RestaurantCardsInner() {
         };
     }, [pagedRestaurants]);
 
-    const catalogById = useMemo(() => {
-        const entries = catalog.map((restaurant) => [restaurant.id, restaurant] as const);
-        return Object.fromEntries(entries);
-    }, [catalog]);
-
-    // ===========================
-    // D) normalize location
-    // ===========================
-    const normalizedCatalog = useMemo(
-        () =>
-            catalog.map((restaurant) => ({
-                ...restaurant,
-                ...getNormalizedLocation(restaurant),
-            })),
-        [catalog]
-    );
 
     const availableCountries = useMemo(() => {
         const options = new Set<string>();
@@ -439,71 +470,11 @@ export function RestaurantCardsInner() {
         setCity("");
     }, [stateValue]);
 
-    const filteredCatalog = useMemo(() => {
-        const normalizedQuery = nameQuery.trim().toLowerCase();
-        const selectedCategory = category.trim().toLowerCase();
-        const minimumStars = starsFilter ? Number(starsFilter) : null;
-
-        return normalizedCatalog.filter((r) => {
-            const matchesName = normalizedQuery
-                ? String(r.name || "").toLowerCase().includes(normalizedQuery)
-                : true;
-
-            const matchesCountry = country ? r.country === country : true;
-            const matchesState = stateValue ? r.state === stateValue : true;
-            const matchesCity = city ? r.city === city : true;
-
-            const matchesCategory = selectedCategory
-                ? getCategoryValues(r).some((value) => value.toLowerCase() === selectedCategory)
-                : true;
-
-            const matchesStars =
-                minimumStars === null
-                    ? true
-                    : parseRatingValue(r.starsgiven) >= minimumStars;
-
-            return (
-                matchesName &&
-                matchesCountry &&
-                matchesState &&
-                matchesCity &&
-                matchesCategory &&
-                matchesStars
-            );
-        });
-    }, [
-        normalizedCatalog,
-        nameQuery,
-        country,
-        stateValue,
-        city,
-        category,
-        starsFilter,
-    ]);
 
     useEffect(() => {
         setCurrentPage(1);
     }, [nameQuery, country, stateValue, city, category, starsFilter]);
 
-    const filteredIds = useMemo(
-        () => filteredCatalog.map((restaurant) => restaurant.id),
-        [filteredCatalog]
-    );
-
-    const totalPages = Math.max(1, Math.ceil(filteredIds.length / pageSize));
-
-    const pageIds = useMemo(() => {
-        const startIndex = (currentPage - 1) * pageSize;
-        return filteredIds.slice(startIndex, startIndex + pageSize);
-    }, [currentPage, filteredIds, pageSize]);
-
-    const pagedRestaurants = useMemo(
-        () =>
-            pageIds
-                .map((id) => detailsById[id] ?? catalogById[id])
-                .filter(Boolean) as Restaurant[],
-        [catalogById, detailsById, pageIds]
-    );
 
     const authProfileLabel = authProfile.email?.trim();
     const userLabel = authProfileLabel || getUserLabel(user, "Guest");
@@ -1046,7 +1017,7 @@ export function RestaurantCardsInner() {
                         <div className="mt-5 flex justify-center">
                             <button
                                 type="button"
-                                onClick={handleLoadMore}
+                                onClick={handleLoadMoreClick}
                                 disabled={loadingMore}
                                 className="h-11 rounded-2xl border border-white/30 bg-white/10 px-6 text-sm font-semibold text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
                             >
