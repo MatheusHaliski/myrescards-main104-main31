@@ -10,6 +10,10 @@ export async function GET() {
             .collection("restaurants")
             .select(
                 "name",
+                "photo",
+                "photoPath",
+                "imagePath",
+                "storagePath",
                 "categories",
                 "category",
                 "rating",
