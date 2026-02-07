@@ -1,6 +1,6 @@
 "use client";
 
-import { collection, getDocs, type DocumentData } from "firebase/firestore";
+import { collection, getDocs, type DocumentData } from "firebase/firestore/lite";
 import { getDb } from "./getDb";
 
 export async function listRestaurants(): Promise<(DocumentData & { id: string })[]> {

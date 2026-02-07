@@ -1,6 +1,6 @@
 "use client";
 
-import { getFirestore, type Firestore } from "firebase/firestore";
+import { getFirestore, type Firestore } from "firebase/firestore/lite";
 import { firebaseAuthGate } from "@/app/gate/firebaseClient"; // ajuste se necessário
 
 let _db: Firestore | null = null;
