@@ -112,8 +112,8 @@ export default function SignupForm() {
                     messages: [`Welcome, ${parsed.data.name}. Your account has been successfully created.`],
                     tone: "success",
                 });
-                form.reset();
                 router.replace("/authview");
+                form.reset();
             } catch (error) {
                 console.error("[Signup] Failed to create account", error);
                 void VSModalPaged({
