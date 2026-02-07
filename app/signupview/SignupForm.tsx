@@ -4,6 +4,7 @@ import { useTransition } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Button } from "../components/ui/button";
+import { useRouter } from "next/navigation";
 import {
     Form,
     FormControl,
@@ -18,6 +19,7 @@ import { signupSchema, type SignupValues } from "./schema";
 import { VSModalPaged} from "@/app/lib/authAlerts";
 
 export default function SignupForm() {
+    const useRouter = useRouter();
     const [isPending, startTransition] = useTransition();
     const form = useForm<SignupValues>({
         resolver: zodResolver(signupSchema),
@@ -105,12 +107,13 @@ export default function SignupForm() {
                     return;
                 }
 
-                void VSModalPaged({
+                await VSModalPaged({
                     title: "Account created",
                     messages: [`Welcome, ${parsed.data.name}. Your account has been successfully created.`],
                     tone: "success",
                 });
                 form.reset();
+                router.replace("/authview");
             } catch (error) {
                 console.error("[Signup] Failed to create account", error);
                 void VSModalPaged({
