@@ -10,7 +10,7 @@ import {
     getDoc,
     serverTimestamp,
     setDoc,
-} from "firebase/firestore";
+} from "firebase/firestore/lite";
 
 import { firebaseAuthGate } from "@/app/gate/firebaseClient";
 import { signInWithGoogle, signOutUser } from "@/app/auth";
