@@ -120,7 +120,7 @@ export default function AuthShell({ title, subtitle, description, children }: Au
                 >
                     <div className="flex items-center gap-4">
                         <img
-                            src="/LOGOOFI.jpeg"
+                            src="/VI.jpeg"
                             alt="Velion Infyra Technology Platforms, Inc."
                             className="h-14 w-auto"
                         />
