@@ -19,7 +19,7 @@ import { signupSchema, type SignupValues } from "./schema";
 import { VSModalPaged} from "@/app/lib/authAlerts";
 
 export default function SignupForm() {
-    const useRouter = useRouter();
+    const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const form = useForm<SignupValues>({
         resolver: zodResolver(signupSchema),
