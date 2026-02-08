@@ -8,20 +8,12 @@ import {
 
 import { TEXT_GLOW, FILTER_GLOW_LINE, CARD_GLASS } from "@/app/lib/uiToken";
 import { useEffect, useMemo, useState } from "react";
-import { getAuthSessionProfile, getAuthSessionToken } from "@/app/lib/authSession";
+import {
+  getAuthSessionProfile,
+  getAuthSessionToken,
+} from "@/app/lib/authSession";
 import { getDevSessionToken } from "@/app/lib/devSession";
 import { useRouter } from "next/navigation";
-
-import {
-  addDoc,
-  collection,
-  doc,
-  serverTimestamp,
-  Timestamp,
-  updateDoc,
-} from "firebase/firestore/lite";
-
-import { getDb } from "@/app/gate/getDb";
 
 /* ======================
    TYPES
@@ -35,7 +27,6 @@ type Review = {
   userPhoto?: string;
   createdAt?: string;
   restaurantId?: string;
-  timestamp?: Timestamp;
 };
 
 type Restaurant = {
@@ -64,7 +55,6 @@ type Props = {
 ====================== */
 export default function RestaurantInfoFront({ restaurant, reviews }: Props) {
   const router = useRouter();
-  const db = useMemo(() => getDb(), []);
 
   // Reviews locais (pra renderizar imediatamente após submit)
   const [localReviews, setLocalReviews] = useState<Review[]>(reviews);
@@ -147,54 +137,39 @@ export default function RestaurantInfoFront({ restaurant, reviews }: Props) {
       return;
     }
 
-    if (!db) {
-      setSubmitError("Firestore is not configured.");
-      return;
-    }
-
     setSubmitting(true);
     setSubmitError("");
 
-    const payload = {
-      createdAt: new Date().toISOString(),
-      grade: reviewRating,
-      rating: reviewRating,
-      restaurantId: restaurant.id,
-      text: reviewText.trim(),
-      timestamp: serverTimestamp(),
-      userDisplayName: profileEmail,
-      userEmail: profileEmail,
-    };
-
     try {
-      // 1) salva review
-      const docRef = await addDoc(collection(db, "review"), payload);
+      const response = await fetch(
+          `/api/restaurants/${restaurant.id}/reviews`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              rating: reviewRating,
+              text: reviewText.trim(),
+              userDisplayName: profileEmail,
+              userEmail: profileEmail,
+            }),
+          }
+      );
 
-      const newReview: Review = {
-        id: docRef.id,
-        ...payload,
-        timestamp: Timestamp.fromDate(new Date()),
-      };
+      if (!response.ok) {
+        const errorBody = (await response.json()) as { error?: string };
+        throw new Error(errorBody?.error || "Unable to submit commentary.");
+      }
+
+      const payload = (await response.json()) as { review?: Review };
+      const newReview = payload.review;
+      if (!newReview) {
+        throw new Error("Unable to submit commentary.");
+      }
 
       // 2) atualiza UI local imediatamente
       setLocalReviews((prev) => [newReview, ...prev]);
       setReviewRating(0);
       setReviewText("");
-
-      // 3) calcula nova média com base no estado “prev” + newReview
-      const nextList = [newReview, ...localReviews];
-      const total = nextList.reduce(
-          (sum, r) => sum + parseRatingValue(r.rating ?? r.grade ?? 0),
-          0
-      );
-      const nextAvg = Number((total / nextList.length).toFixed(2));
-
-      // 4) atualiza o documento do restaurante (rating = média)
-      const restaurantRef = doc(db, "restaurants", restaurant.id);
-      await updateDoc(restaurantRef, {
-        rating: nextAvg,
-        starsgiven: nextAvg, // opcional: contador
-      });
     } catch (err: any) {
       setSubmitError(err?.message || "Unable to submit commentary.");
     } finally {
